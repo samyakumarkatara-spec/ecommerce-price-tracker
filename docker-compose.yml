@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${POSTGRES_DB:-pricedb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: cleanstart/minio:latest
+    user: root
+    container_name: minio_storage
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+
+  airflow:
+    image: apache/airflow:2.8.1-python3.10
+    container_name: airflow_scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-pricedb}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_SECRET_KEY:-local-development-secret-key}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+      - S3_ENDPOINT_URL=http://minio:9000
+      - _PIP_ADDITIONAL_REQUIREMENTS=boto3 pandas psycopg2-binary sqlalchemy requests rapidfuzz
+      - PYTHONPATH=/opt/airflow
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    volumes:
+      - ./src/ingestion/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+    command: bash -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin && airflow webserver & airflow scheduler"
+
+  dashboard:
+    image: python:3.12-slim
+    container_name: price_dashboard
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-pricedb}
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./dashboard.py:/app/dashboard.py:ro
+    command: bash -c "pip install --quiet streamlit pandas sqlalchemy psycopg2-binary && streamlit run /app/dashboard.py --server.address=0.0.0.0"
+
+volumes:
+  pgdata:
+  miniodata:
