@@ -29,7 +29,19 @@ Streamlit dashboard
 | MinIO Console | http://localhost:9001 | Object storage |
 | MinIO API | http://localhost:9000 | S3-compatible endpoint |
 | Streamlit Dashboard | http://localhost:8501 | Data visualization |
-| PostgreSQL | localhost:5432 | Historical price database |
+| PostgreSQL | `localhost:5432` | Historical price database; use a PostgreSQL client, not a browser |
+
+### PostgreSQL connection
+
+PostgreSQL has no HTTP web page, so it cannot be opened like the other URLs. Use this connection string in pgAdmin, DBeaver, TablePlus, VS Code SQL extensions, or SQLAlchemy:
+
+[PostgreSQL connection URL](postgresql://airflow:airflow@localhost:5432/pricedb)
+
+The Docker-internal connection URL used by Airflow and the dashboard is:
+
+```text
+postgresql+psycopg2://airflow:airflow@postgres:5432/pricedb
+```
 
 ## Local Credentials
 
